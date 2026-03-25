@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Dubai Property Scraper — Bayut API edition
-Uses Bayut's internal API (same one their mobile app uses).
-Works from any IP including GitHub Actions cloud servers.
+Dubai Property Scraper — RapidAPI / Bayut edition
+Uses the Bayut API on RapidAPI (bayut14.p.rapidapi.com).
+Requires RAPIDAPI_KEY environment variable (set as GitHub secret).
 """
 
-import json, time, random, re, urllib.request, urllib.parse
+import json, time, random, re, os, urllib.request, urllib.parse
 from datetime import datetime
 from pathlib import Path
 
@@ -27,8 +27,7 @@ AREA_LABELS = {
     "madinat-jumeirah-living": "Madinat Jumeirah Living",
 }
 
-# Bayut internal location IDs for each area
-# These are stable IDs used by Bayut's API
+# Bayut location IDs (used by the apidojo API)
 AREA_IDS = {
     "dubai-hills-estate":      "5002",
     "the-springs":             "660",
@@ -38,9 +37,13 @@ AREA_IDS = {
 }
 
 BEDROOMS       = [3, 4]
-PROPERTY_TYPES = {"villa": "3", "townhouse": "38"}  # Bayut type IDs
-PURPOSES       = {"for-sale": "sale", "for-rent": "rent"}
+PURPOSES       = ["for-sale", "for-rent"]
+# apidojo uses categoryExternalID: 3=villa, 38=townhouse
+CATEGORIES     = {"villa": "3", "townhouse": "38"}
+
 MAX_AGE_DAYS   = 7
+RAPIDAPI_KEY   = os.environ.get("RAPIDAPI_KEY", "")
+RAPIDAPI_HOST  = "bayut14.p.rapidapi.com"
 
 OUTPUT_FILE    = Path(__file__).parent / "listings.json"
 DASHBOARD_FILE = Path(__file__).parent / "dashboard.html"
@@ -70,70 +73,67 @@ DLD_BENCHMARKS = {
     "madinat-jumeirah-living|4|townhouse": {"avg_psqm": None, "sample_size": 0},
 }
 
-# ── Bayut API ──────────────────────────────────────────────────────────────────
+# ── API call ───────────────────────────────────────────────────────────────────
 
-API_BASE = "https://www.bayut.com/api/v1"
-
-API_HEADERS = {
-    "User-Agent":      "Bayut/20.0.0 (iPhone; iOS 16.0; Scale/3.00)",
-    "Accept":          "application/json",
-    "Accept-Language": "en",
-    "X-Forwarded-For": "5.195.0.1",  # UAE IP hint
-}
-
-def bayut_search(purpose_key, area_slug, beds, ptype_slug):
-    """
-    Call Bayut's listing search API.
-    Returns list of raw property dicts.
-    """
-    purpose  = PURPOSES[purpose_key]
-    area_id  = AREA_IDS[area_slug]
-    type_id  = PROPERTY_TYPES[ptype_slug]
-
-    params = {
-        "purpose":       purpose,
-        "categoryExternalID": type_id,
-        "locationExternalIDs": area_id,
-        "bedrooms":      beds,
-        "sort":          "date_desc",
-        "hitsPerPage":   25,
-        "page":          0,
-        "lang":          "en",
+def search_properties(purpose, area_slug, beds, category_slug):
+    """Call the Bayut RapidAPI and return raw hits list."""
+    params = urllib.parse.urlencode({
+        "locationExternalIDs": AREA_IDS[area_slug],
+        "purpose":             purpose,
+        "categoryExternalID":  CATEGORIES[category_slug],
+        "bedrooms":            beds,
+        "hitsPerPage":         25,
+        "page":                0,
+        "sort":                "date_desc",
+        "lang":                "en",
+    })
+    url = f"https://{RAPIDAPI_HOST}/properties/list?{params}"
+    headers = {
+        "x-rapidapi-key":  RAPIDAPI_KEY,
+        "x-rapidapi-host": RAPIDAPI_HOST,
     }
-
-    url = f"{API_BASE}/listings/search?" + urllib.parse.urlencode(params)
-
     try:
-        req = urllib.request.Request(url, headers=API_HEADERS)
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read())
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=15) as r:
+            data = json.loads(r.read())
 
-        # API returns hits under various keys
+        # API returns hits nested under various keys — try all
         hits = (data.get("hits") or
                 data.get("properties") or
-                data.get("results") or
-                data.get("data") or [])
-
+                data.get("results") or [])
         if isinstance(hits, dict):
             hits = hits.get("hits") or hits.get("properties") or []
 
+        # Some versions wrap in a top-level object
+        if not hits and isinstance(data, dict):
+            for v in data.values():
+                if isinstance(v, list) and v and isinstance(v[0], dict):
+                    if any(k in v[0] for k in ["externalID", "price", "beds", "title"]):
+                        hits = v
+                        break
+
         return hits
 
+    except urllib.error.HTTPError as e:
+        body = ""
+        try: body = e.read().decode()[:300]
+        except: pass
+        print(f"    HTTP {e.code}: {e.reason} — {body}")
+        return []
     except Exception as e:
-        print(f"    API error: {e}")
+        print(f"    Error: {e}")
         return []
 
+# ── Parsing ────────────────────────────────────────────────────────────────────
 
 def parse_age_days(added_str):
     if not added_str:
         return 999
-    # Try ISO date string
     try:
         dt = datetime.fromisoformat(str(added_str).replace("Z", "+00:00"))
         return (datetime.now().astimezone() - dt).days
     except Exception:
         pass
-    # Try relative string
     s = str(added_str).lower().strip()
     if any(x in s for x in ("today", "hour", "minute", "just")): return 0
     if "yesterday" in s: return 1
@@ -143,9 +143,7 @@ def parse_age_days(added_str):
     if m: return int(m.group(1)) * 7
     return 999
 
-
-def parse_hit(hit, purpose_key, area_slug, ptype_slug):
-    """Convert a raw API hit into our standard listing dict."""
+def parse_hit(hit, purpose, area_slug, category_slug):
     try:
         added_str = (hit.get("addedOn") or hit.get("createdAt")
                      or hit.get("listingAddedDate") or "")
@@ -155,55 +153,51 @@ def parse_hit(hit, purpose_key, area_slug, ptype_slug):
 
         # Price
         price = 0
-        for pf in ("price", "rentPrice", "salePrice", "monthlyRentPrice"):
-            v = hit.get(pf)
+        for f in ("price", "rentPrice", "salePrice", "monthlyRentPrice"):
+            v = hit.get(f)
             if v:
-                price = int(float(str(v).replace(",", "")))
-                break
+                try: price = int(float(str(v).replace(",", "")))
+                except: pass
+                if price: break
 
         # URL
-        ext_id = hit.get("externalID") or hit.get("id") or ""
+        ext_id = str(hit.get("externalID") or hit.get("id") or "")
         slug   = hit.get("slug") or ""
-        if ext_id:
-            url = f"https://www.bayut.com/property/details-{ext_id}.html"
-        elif slug:
-            url = f"https://www.bayut.com/{slug}/"
-        else:
-            url = "https://www.bayut.com"
+        url    = (f"https://www.bayut.com/property/details-{ext_id}.html"
+                  if ext_id else f"https://www.bayut.com/{slug}/" if slug
+                  else "https://www.bayut.com")
 
         # Image
         image_url = ""
-        for img_field in ("coverPhoto", "photos", "mainPhoto", "heroImage"):
-            imgs = hit.get(img_field)
-            if not imgs: continue
-            if isinstance(imgs, dict):
-                image_url = imgs.get("url") or imgs.get("src") or ""
-            elif isinstance(imgs, list) and imgs:
-                first = imgs[0]
-                image_url = (first.get("url") or first.get("src") or "") if isinstance(first, dict) else (first if isinstance(first, str) else "")
+        for field in ("coverPhoto", "photos", "mainPhoto", "heroImage"):
+            img = hit.get(field)
+            if not img: continue
+            if isinstance(img, dict):
+                image_url = img.get("url") or img.get("src") or ""
+            elif isinstance(img, list) and img:
+                f0 = img[0]
+                image_url = (f0.get("url") or f0.get("src") or "") if isinstance(f0, dict) else (f0 if isinstance(f0, str) else "")
             if image_url: break
 
         # Location
-        loc_list = hit.get("location") or []
-        if isinstance(loc_list, list) and loc_list:
-            parts = [l.get("name", "") for l in loc_list if isinstance(l, dict) and l.get("name")]
+        loc = hit.get("location") or []
+        if isinstance(loc, list) and loc:
+            parts = [l.get("name","") for l in loc if isinstance(l,dict) and l.get("name")]
             location_str = ", ".join(parts[-2:]) if parts else AREA_LABELS[area_slug]
         else:
             location_str = AREA_LABELS[area_slug]
 
-        # Beds / baths / size
         beds  = hit.get("beds") or hit.get("bedrooms") or 0
         baths = hit.get("baths") or hit.get("bathrooms") or 0
         sqft  = hit.get("area") or hit.get("size") or hit.get("areaSqft") or 0
-
-        ptype = hit.get("type") or hit.get("propertyType") or ptype_slug.title()
+        ptype = hit.get("type") or hit.get("propertyType") or category_slug.title()
 
         return {
-            "id":            str(ext_id or slug),
-            "title":         hit.get("title") or hit.get("name") or f"{beds}BR {ptype.title()}",
+            "id":            ext_id or slug,
+            "title":         hit.get("title") or hit.get("name") or f"{beds}BR {ptype}",
             "price":         price,
             "currency":      "AED",
-            "purpose":       purpose_key,
+            "purpose":       purpose,
             "beds":          beds,
             "baths":         baths,
             "area_sqft":     sqft,
@@ -220,6 +214,7 @@ def parse_hit(hit, purpose_key, area_slug, ptype_slug):
         print(f"    Parse error: {e}")
         return None
 
+# ── Price/sqm enrichment ───────────────────────────────────────────────────────
 
 def enrich_psqm(listing):
     price = listing.get("price", 0)
@@ -237,15 +232,12 @@ def enrich_psqm(listing):
         listing["avg_psqm"]        = avg
         listing["dld_sample_size"] = bench.get("sample_size", 0)
         listing["dld_date_range"]  = bench.get("date_range", "")
-        listing["vs_avg_pct"]      = round(((psqm - avg) / avg) * 100, 1) if avg else None
+        listing["vs_avg_pct"]      = round(((psqm-avg)/avg)*100,1) if avg else None
     else:
-        listing["avg_psqm"]        = None
-        listing["vs_avg_pct"]      = None
+        listing["avg_psqm"] = listing["vs_avg_pct"] = None
         listing["dld_sample_size"] = 0
         listing["dld_date_range"]  = ""
-
     return listing
-
 
 # ── Dashboard injection ────────────────────────────────────────────────────────
 
@@ -257,34 +249,39 @@ def inject_into_dashboard(data):
     block = f"const EMBEDDED_DATA = {json.dumps(data, ensure_ascii=False)};"
     html  = re.sub(r"const EMBEDDED_DATA = \{.*?\};", block, html, flags=re.DOTALL)
     DASHBOARD_FILE.write_text(html, encoding="utf-8")
-    print(f"Dashboard updated: {DASHBOARD_FILE}")
-
+    print(f"Dashboard updated.")
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
-    print("Dubai Property Scraper (API mode)")
+    if not RAPIDAPI_KEY:
+        print("ERROR: RAPIDAPI_KEY environment variable not set.")
+        print("Add it as a GitHub secret named RAPIDAPI_KEY.")
+        return
+
+    print("Dubai Property Scraper")
     print("=" * 45)
     print(f"Areas : {', '.join(AREA_LABELS.values())}")
     print(f"Beds  : {BEDROOMS}")
+    print(f"Key   : {RAPIDAPI_KEY[:8]}...{RAPIDAPI_KEY[-4:]}")
     print("=" * 45)
 
     all_listings = []
     seen_ids     = set()
 
-    for purpose_key in PURPOSES:
+    for purpose in PURPOSES:
         for area_slug in AREAS:
             for beds in BEDROOMS:
-                for ptype_slug in PROPERTY_TYPES:
-                    label = f"{purpose_key} | {ptype_slug} | {AREA_LABELS[area_slug]} | {beds}bd"
+                for cat_slug in CATEGORIES:
+                    label = f"{purpose} | {cat_slug} | {AREA_LABELS[area_slug]} | {beds}bd"
                     print(f"  Fetching: {label}")
 
-                    hits = bayut_search(purpose_key, area_slug, beds, ptype_slug)
-                    print(f"    API returned {len(hits)} hits")
+                    hits = search_properties(purpose, area_slug, beds, cat_slug)
+                    print(f"    Got {len(hits)} hits from API")
 
                     found = 0
                     for hit in hits:
-                        listing = parse_hit(hit, purpose_key, area_slug, ptype_slug)
+                        listing = parse_hit(hit, purpose, area_slug, cat_slug)
                         if listing:
                             lid = listing["id"]
                             if lid and lid not in seen_ids:
@@ -293,9 +290,9 @@ def main():
                                 found += 1
 
                     print(f"    {found} within last {MAX_AGE_DAYS} days")
-                    time.sleep(random.uniform(0.5, 1.5))
+                    time.sleep(random.uniform(0.3, 0.8))
 
-    print(f"\nEnriching {len(all_listings)} listings with price/sqm...")
+    print(f"\nEnriching {len(all_listings)} listings...")
     for lst in all_listings:
         enrich_psqm(lst)
 
@@ -311,7 +308,6 @@ def main():
     OUTPUT_FILE.write_text(json.dumps(output, indent=2, ensure_ascii=False))
     print(f"Done! {len(all_listings)} listings saved.")
     inject_into_dashboard(output)
-
 
 if __name__ == "__main__":
     main()
