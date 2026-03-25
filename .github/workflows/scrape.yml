@@ -3,7 +3,7 @@ name: Daily Property Scraper
 on:
   schedule:
     - cron: '0 5 * * *'  # 9am Dubai time (UTC+4) every day
-  workflow_dispatch:       # also lets you trigger it manually with a button
+  workflow_dispatch:       # lets you trigger manually with a button
 
 jobs:
   scrape:
@@ -19,12 +19,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          pip install playwright
-          python -m playwright install chromium
-          python -m playwright install-deps chromium
 
       - name: Run scraper
         run: python scrape.py
