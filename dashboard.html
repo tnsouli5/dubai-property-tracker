@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dubai Property Finder</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --sand: #f5f0e8;
+    --sand-dark: #ede5d6;
+    --ink: #1a1714;
+    --ink-soft: #3d3830;
+    --gold: #b8963e;
+    --gold-light: #d4b06a;
+    --gold-pale: #f0e4c4;
+    --muted: #8a8070;
+    --white: #fefcf8;
+    --sale: #2d5a3d;
+    --sale-bg: #e8f2ec;
+    --rent: #2a3d6b;
+    --rent-bg: #e8edf5;
+    --new: #7a2d1e;
+    --new-bg: #f7ece9;
+  }
+
+  body {
+    background: var(--sand);
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+  }
+
+  /* ─── Header ─── */
+  header {
+    background: var(--ink);
+    padding: 2.5rem 3rem;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 2rem;
+  }
+  .header-left h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(2rem, 4vw, 3.2rem);
+    font-weight: 300;
+    color: var(--white);
+    letter-spacing: 0.02em;
+    line-height: 1.1;
+  }
+  .header-left h1 em {
+    font-style: italic;
+    color: var(--gold-light);
+  }
+  .header-sub {
+    color: var(--muted);
+    font-size: 0.8rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 0.5rem;
+  }
+  .header-meta {
+    text-align: right;
+  }
+  .last-updated {
+    color: var(--muted);
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    background: var(--gold);
+    color: var(--ink);
+    border: none;
+    padding: 0.6rem 1.2rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .refresh-btn:hover { background: var(--gold-light); }
+
+  /* ─── Stats bar ─── */
+  .stats-bar {
+    background: var(--ink-soft);
+    padding: 1rem 3rem;
+    display: flex;
+    gap: 3rem;
+    flex-wrap: wrap;
+  }
+  .stat {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .stat-num {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.6rem;
+    font-weight: 600;
+    color: var(--gold-light);
+  }
+  .stat-label {
+    color: var(--muted);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* ─── Filters ─── */
+  .filters {
+    background: var(--white);
+    border-bottom: 1px solid var(--sand-dark);
+    padding: 1.2rem 3rem;
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filter-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-right: 0.5rem;
+  }
+  .filter-btn {
+    padding: 0.45rem 1rem;
+    border: 1px solid var(--sand-dark);
+    background: transparent;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+  }
+  .filter-btn:hover, .filter-btn.active {
+    background: var(--ink);
+    color: var(--white);
+    border-color: var(--ink);
+  }
+  .filter-sep {
+    width: 1px;
+    height: 24px;
+    background: var(--sand-dark);
+    margin: 0 0.5rem;
+  }
+  .sort-select {
+    margin-left: auto;
+    padding: 0.45rem 1rem;
+    border: 1px solid var(--sand-dark);
+    background: transparent;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+    outline: none;
+  }
+
+  /* ─── Grid ─── */
+  .container {
+    padding: 2rem 3rem 3rem;
+  }
+  .results-header {
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1.5rem;
+  }
+  .results-header span {
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 1.5rem;
+  }
+
+  /* ─── Card ─── */
+  .card {
+    background: var(--white);
+    border: 1px solid var(--sand-dark);
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+  }
+  .card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(26,23,20,0.1);
+  }
+
+  .card-img {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    background: var(--sand-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .card-img-placeholder {
+    width: 100%;
+    height: 200px;
+    background: linear-gradient(135deg, var(--sand-dark) 0%, var(--gold-pale) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .card-img-placeholder svg {
+    opacity: 0.25;
+  }
+  .card-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .badge-row {
+    position: absolute;
+    top: 0.75rem;
+    left: 0.75rem;
+    right: 0.75rem;
+    display: flex;
+    gap: 0.4rem;
+    justify-content: space-between;
+  }
+  .badge {
+    padding: 0.25rem 0.6rem;
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .badge-sale { background: var(--sale); color: #fff; }
+  .badge-rent { background: var(--rent); color: #fff; }
+  .badge-new { background: var(--new); color: #fff; }
+  .badge-days { background: rgba(26,23,20,0.75); color: #fff; backdrop-filter: blur(4px); }
+
+  .card-body {
+    padding: 1.25rem 1.5rem 1.5rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .card-location {
+    font-size: 0.68rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--gold);
+    font-weight: 500;
+  }
+
+  .card-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.15rem;
+    font-weight: 400;
+    line-height: 1.3;
+    color: var(--ink);
+  }
+
+  .card-price {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: 0.01em;
+  }
+  .card-price .price-suffix {
+    font-size: 0.75rem;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-left: 0.3rem;
+  }
+
+  .card-specs {
+    display: flex;
+    gap: 1.25rem;
+    border-top: 1px solid var(--sand-dark);
+    padding-top: 0.75rem;
+    margin-top: auto;
+  }
+  .spec {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .spec svg { flex-shrink: 0; }
+
+  .card-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-top: 0.5rem;
+    transition: gap 0.2s;
+  }
+  .card:hover .card-cta { gap: 0.6rem; }
+
+  /* ─── Price/sqm benchmark ─── */
+  .psqm-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 2px;
+    margin-top: 0.25rem;
+    background: var(--sand);
+  }
+  .psqm-left { font-size: 0.78rem; color: var(--ink-soft); }
+  .psqm-left strong { font-weight: 500; color: var(--ink); }
+  .psqm-badge {
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    padding: 0.2rem 0.55rem;
+    border-radius: 2px;
+    white-space: nowrap;
+    text-transform: uppercase;
+  }
+  .psqm-below  { background: #e8f2ec; color: #2d5a3d; }
+  .psqm-above  { background: #f7ece9; color: #7a2d1e; }
+  .psqm-inline { background: #fff8e8; color: #7a5a1e; }
+  .psqm-nodata { background: var(--sand-dark); color: var(--muted); font-weight:400; }
+
+  /* ─── Empty state ─── */
+  .empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 5rem 2rem;
+    color: var(--muted);
+  }
+  .empty h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.5rem;
+    font-weight: 300;
+    margin-bottom: 0.5rem;
+    color: var(--ink-soft);
+  }
+
+  /* ─── Loading ─── */
+  .loading {
+    text-align: center;
+    padding: 4rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 768px) {
+    header, .stats-bar, .filters, .container { padding-left: 1.25rem; padding-right: 1.25rem; }
+    .grid { grid-template-columns: 1fr; }
+    .header-meta { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>Dubai <em>Property</em> Tracker</h1>
+    <p class="header-sub">Villas &amp; Townhouses · 3–4 Bedrooms · New This Week</p>
+  </div>
+  <div class="header-meta">
+    <div class="last-updated" id="lastUpdated">—</div>
+    <button class="refresh-btn" onclick="alert('To refresh listings, run scrape.py — it will update this file automatically.')">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M10.5 6A4.5 4.5 0 1 1 6 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M6 0l1.5 1.5L6 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Run scrape.py to refresh
+    </button>
+  </div>
+</header>
+
+<div class="stats-bar">
+  <div class="stat"><div class="stat-num" id="statTotal">—</div><div class="stat-label">Listings</div></div>
+  <div class="stat"><div class="stat-num" id="statSale">—</div><div class="stat-label">For Sale</div></div>
+  <div class="stat"><div class="stat-num" id="statRent">—</div><div class="stat-label">For Rent</div></div>
+  <div class="stat"><div class="stat-num" id="statNew">—</div><div class="stat-label">Added Today</div></div>
+</div>
+
+<div class="filters">
+  <span class="filter-label">Purpose</span>
+  <button class="filter-btn active" data-filter="purpose" data-value="all">All</button>
+  <button class="filter-btn" data-filter="purpose" data-value="for-sale">For Sale</button>
+  <button class="filter-btn" data-filter="purpose" data-value="for-rent">For Rent</button>
+
+  <div class="filter-sep"></div>
+  <span class="filter-label">Area</span>
+  <button class="filter-btn active" data-filter="area" data-value="all">All Areas</button>
+  <button class="filter-btn" data-filter="area" data-value="dubai-hills-estate">Dubai Hills</button>
+  <button class="filter-btn" data-filter="area" data-value="the-springs">The Springs</button>
+  <button class="filter-btn" data-filter="area" data-value="the-meadows">The Meadows</button>
+  <button class="filter-btn" data-filter="area" data-value="the-lakes">The Lakes</button>
+  <button class="filter-btn" data-filter="area" data-value="madinat-jumeirah-living">MJL</button>
+
+  <div class="filter-sep"></div>
+  <span class="filter-label">Beds</span>
+  <button class="filter-btn active" data-filter="beds" data-value="all">3 & 4</button>
+  <button class="filter-btn" data-filter="beds" data-value="3">3 Beds</button>
+  <button class="filter-btn" data-filter="beds" data-value="4">4 Beds</button>
+
+  <select class="sort-select" id="sortSelect" onchange="renderListings()">
+    <option value="newest">Newest First</option>
+    <option value="price_asc">Price: Low → High</option>
+    <option value="price_desc">Price: High → Low</option>
+    <option value="size_desc">Largest First</option>
+  </select>
+</div>
+
+<div class="container">
+  <p class="results-header">Showing <span id="resultCount">—</span> listings</p>
+  <div class="grid" id="grid">
+    <div class="loading">Loading listings…</div>
+  </div>
+</div>
+
+<script>
+// ── Embedded data (updated by scrape.py on each run) ──────────────────────────
+const EMBEDDED_DATA = {"last_updated": "2026-03-24T10:30:00", "total": 12, "dld_configured": true, "listings": [{"id": "1001", "title": "Stunning 4BR Villa | Park View | Single Row", "price": 7200000, "currency": "AED", "purpose": "for-sale", "beds": 4, "baths": 5, "area_sqft": 4800, "property_type": "Villa", "location": "Dubai Hills Estate, Dubai", "area_slug": "dubai-hills-estate", "image_url": "", "url": "https://www.bayut.com/property/details-1001.html", "age_days": 0, "added_str": "Today", "scraped_at": "2026-03-24T10:30:00", "price_per_sqm": 16146, "avg_psqm": 14500, "vs_avg_pct": 11.4, "dld_sample_size": 5}, {"id": "1002", "title": "Elegant 3BR Townhouse | Corner Unit | Near Park", "price": 3850000, "currency": "AED", "purpose": "for-sale", "beds": 3, "baths": 4, "area_sqft": 2900, "property_type": "Townhouse", "location": "Dubai Hills Estate, Dubai", "area_slug": "dubai-hills-estate", "image_url": "", "url": "https://www.bayut.com/property/details-1002.html", "age_days": 1, "added_str": "Yesterday", "scraped_at": "2026-03-24T10:30:00", "price_per_sqm": 14290, "avg_psqm": 13200, "vs_avg_pct": 8.3, "dld_sample_size": 5}, {"id": "1003", "title": "Spacious 4BR Villa | Lake View | Vacant", "price": 380000, "currency": "AED", "purpose": "for-rent", "beds": 4, "baths": 5, "area_sqft": 4200, "property_type": "Villa", "location": "The Lakes, Dubai", "area_slug": "the-lakes", "image_url": "", "url": "https://www.bayut.com/property/details-1003.html", "age_days": 2, "added_str": "2 days ago", "scraped_at": "2026-03-24T10:30:00", "price_per_sqm": 974, "avg_psqm": null, "vs_avg_pct": null, "dld_sample_size": 0}, {"id": "1004", "title": "3BR Townhouse | End Unit | Private Garden", "price": 195000, "currency": "AED", "purpose": "for-rent", "beds": 3, "baths": 3, "area_sqft": 2400, "property_type": "Townhouse", "location": "The Springs, Dubai", "area_slug": "the-springs", "image_url": "", "url": "https://www.bayut.com/property/details-1004.html", "age_days": 2, "added_str": "2 days ago", "scraped_at": "2026-03-24T10:30:00", "price_per_sqm": 875, "avg_psqm": null, "vs_avg_pct": null, "dld_sample_size": 0}, {"id": "1005", "title": "4BR Villa | Meadows 9 | Pool | Fully Upgraded", "price": 5600000, "currency": "AED", "purpose": "for-sale", "beds": 4, "baths": 5, "area_sqft": 4600, "property_type": "Villa", "location": "The Meadows, Dubai", "area_slug": "the-meadows", "image_url": "", "url": "https://www.bayut.com/property/details-1005.html", "age_days": 3, "added_str": "3 days ago", "scraped_at": "2026-03-24T10:30:00", "price_per_sqm": 13104, "avg_psqm": 11500, "vs_avg_pct": 13.9, "dld_sample_size": 5}, {"id": "1006", "title": "Rare 3BR Villa | MJL | Sea Views | Brand New", "price": 8900000, "currency": "AED", "purpose": "for-sale", "beds": 3, "baths": 4, "area_sqft": 3100, "property_type": "Villa", "location": "Madinat Jumeirah Living, Dubai", "area_slug": "madinat-jumeirah-living", "image_url": "", "url": "https://www.bayut.com/property/details-1006.html", "age_days": 3, "added_str": "3 days ago", "scraped_at": "2026-03-24T10:30:00", "price_per_sqm": 30904, "avg_psqm": 19500, "vs_avg_pct": 58.5, "dld_sample_size": 5}, {"id": "1007", "title": "4BR Townhouse | Springs 15 | Backing Park", "price": 4100000, "currency": "AED", "purpose": "for-sale", "beds": 4, "baths": 4, "area_sqft": 3300, "property_type": "Townhouse", "location": "The Springs, Dubai", "area_slug": "the-springs", "image_url": "", "url": "https://www.bayut.com/property/details-1007.html", "age_days": 4, "added_str": "4 days ago", "scraped_at": "2026-03-24T10:30:00", "price_per_sqm": 13374, "avg_psqm": 10200, "vs_avg_pct": 31.1, "dld_sample_size": 5}, {"id": "1008", "title": "3BR Villa | The Meadows | Extended | Vacant", "price": 290000, "currency": "AED", "purpose": "for-rent", "beds": 3, "baths": 4, "area_sqft": 3500, "property_type": "Villa", "location": "The Meadows, Dubai", "area_slug": "the-meadows", "image_url": "", "url": "https://www.bayut.com/property/details-1008.html", "age_days": 5, "added_str": "5 days ago", "scraped_at": "2026-03-24T10:30:00", "price_per_sqm": 892, "avg_psqm": null, "vs_avg_pct": null, "dld_sample_size": 0}, {"id": "1009", "title": "4BR Luxury Villa | Dubai Hills | Golf Course View", "price": 9500000, "currency": "AED", "purpose": "for-sale", "beds": 4, "baths": 6, "area_sqft": 6200, "property_type": "Villa", "location": "Dubai Hills Estate, Dubai", "area_slug": "dubai-hills-estate", "image_url": "", "url": "https://www.bayut.com/property/details-1009.html", "age_days": 5, "added_str": "5 days ago", "scraped_at": "2026-03-24T10:30:00", "price_per_sqm": 16494, "avg_psqm": 14500, "vs_avg_pct": 13.8, "dld_sample_size": 5}, {"id": "1010", "title": "3BR Townhouse | MJL | Burj View | Smart Home", "price": 420000, "currency": "AED", "purpose": "for-rent", "beds": 3, "baths": 3, "area_sqft": 2800, "property_type": "Townhouse", "location": "Madinat Jumeirah Living, Dubai", "area_slug": "madinat-jumeirah-living", "image_url": "", "url": "https://www.bayut.com/property/details-1010.html", "age_days": 6, "added_str": "6 days ago", "scraped_at": "2026-03-24T10:30:00", "price_per_sqm": 1615, "avg_psqm": null, "vs_avg_pct": null, "dld_sample_size": 0}, {"id": "1011", "title": "4BR Villa | The Lakes | Large Plot | Pool", "price": 6800000, "currency": "AED", "purpose": "for-sale", "beds": 4, "baths": 5, "area_sqft": 5400, "property_type": "Villa", "location": "The Lakes, Dubai", "area_slug": "the-lakes", "image_url": "", "url": "https://www.bayut.com/property/details-1011.html", "age_days": 6, "added_str": "6 days ago", "scraped_at": "2026-03-24T10:30:00", "price_per_sqm": 13555, "avg_psqm": 12800, "vs_avg_pct": 5.9, "dld_sample_size": 5}, {"id": "1012", "title": "3BR Townhouse | Springs 4 | Renovated | Lake View", "price": 175000, "currency": "AED", "purpose": "for-rent", "beds": 3, "baths": 3, "area_sqft": 2200, "property_type": "Townhouse", "location": "The Springs, Dubai", "area_slug": "the-springs", "image_url": "", "url": "https://www.bayut.com/property/details-1012.html", "age_days": 7, "added_str": "7 days ago", "scraped_at": "2026-03-24T10:30:00", "price_per_sqm": 856, "avg_psqm": null, "vs_avg_pct": null, "dld_sample_size": 0}]};
+
+let allListings = [];
+let activeFilters = { purpose: 'all', area: 'all', beds: 'all' };
+
+function formatPrice(price, purpose) {
+  if (!price) return 'Price on Request';
+  if (price >= 1000000) {
+    return 'AED ' + (price / 1000000).toFixed(price % 1000000 === 0 ? 0 : 1) + 'M';
+  }
+  return 'AED ' + price.toLocaleString();
+}
+
+function formatAge(days) {
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  return days + 'd ago';
+}
+
+function formatSqft(sqft) {
+  if (!sqft) return '—';
+  return sqft.toLocaleString() + ' sqft';
+}
+
+function getFilteredListings() {
+  let list = [...allListings];
+  if (activeFilters.purpose !== 'all') list = list.filter(l => l.purpose === activeFilters.purpose);
+  if (activeFilters.area !== 'all') list = list.filter(l => l.area_slug === activeFilters.area);
+  if (activeFilters.beds !== 'all') list = list.filter(l => String(l.beds) === activeFilters.beds);
+
+  const sort = document.getElementById('sortSelect').value;
+  if (sort === 'price_asc') list.sort((a, b) => (a.price||0) - (b.price||0));
+  else if (sort === 'price_desc') list.sort((a, b) => (b.price||0) - (a.price||0));
+  else if (sort === 'size_desc') list.sort((a, b) => (b.area_sqft||0) - (a.area_sqft||0));
+  else list.sort((a, b) => (a.age_days||0) - (b.age_days||0));
+
+  return list;
+}
+
+function renderCard(l) {
+  const purposeClass = l.purpose === 'for-sale' ? 'badge-sale' : 'badge-rent';
+  const purposeLabel = l.purpose === 'for-sale' ? 'For Sale' : 'For Rent';
+  const isNew = l.age_days === 0;
+
+  const imgHtml = l.image_url
+    ? `<img src="${l.image_url}" alt="${l.title}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+    : '';
+
+  const priceSuffix = l.purpose === 'for-rent'
+    ? '<span class="price-suffix">/ yr</span>'
+    : '';
+
+  // Price per sqm + DLD benchmark row
+  function psqmRow() {
+    if (!l.price_per_sqm) return '';
+    const psqmFmt = 'AED ' + l.price_per_sqm.toLocaleString() + '/sqm';
+    if (l.purpose === 'for-rent') {
+      return `<div class="psqm-row">
+        <div class="psqm-left"><strong>${psqmFmt}</strong></div>
+        <span class="psqm-badge psqm-nodata">Rent listing</span>
+      </div>`;
+    }
+    if (l.vs_avg_pct === null || l.vs_avg_pct === undefined) {
+      return `<div class="psqm-row">
+        <div class="psqm-left"><strong>${psqmFmt}</strong></div>
+        <span class="psqm-badge psqm-nodata">No DLD data</span>
+      </div>`;
+    }
+    const diff = l.vs_avg_pct;
+    const absDiff = Math.abs(diff).toFixed(1);
+    const avgFmt = 'AED ' + l.avg_psqm.toLocaleString() + '/sqm avg';
+    let cls, label;
+    if (diff <= -5) {
+      cls = 'psqm-below';
+      label = `▼ ${absDiff}% below avg`;
+    } else if (diff >= 5) {
+      cls = 'psqm-above';
+      label = `▲ ${absDiff}% above avg`;
+    } else {
+      cls = 'psqm-inline';
+      label = `≈ inline with avg`;
+    }
+    const sampleNote = l.dld_sample_size ? ` (${l.dld_sample_size} sales)` : '';
+    return `<div class="psqm-row">
+      <div class="psqm-left"><strong>${psqmFmt}</strong><br><span style="font-size:0.7rem;color:var(--muted)">${avgFmt}${sampleNote}</span></div>
+      <span class="psqm-badge ${cls}">${label}</span>
+    </div>`;
+  }
+
+  return `
+    <a class="card" href="${l.url}" target="_blank" rel="noopener">
+      <div class="card-img-placeholder">
+        ${imgHtml}
+        <svg width="60" height="60" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg" style="${l.image_url ? 'display:none' : ''}">
+          <path d="M10 25L30 8L50 25V52H36V38H24V52H10V25Z" stroke="#b8963e" stroke-width="1.5" fill="none"/>
+          <rect x="24" y="38" width="12" height="14" stroke="#b8963e" stroke-width="1.5" fill="none"/>
+        </svg>
+        <div class="badge-row">
+          <span class="badge ${purposeClass}">${purposeLabel}</span>
+          <div style="display:flex;gap:0.4rem">
+            ${isNew ? '<span class="badge badge-new">New</span>' : ''}
+            <span class="badge badge-days">${formatAge(l.age_days)}</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="card-location">${l.location}</div>
+        <div class="card-title">${l.title}</div>
+        <div class="card-price">
+          ${formatPrice(l.price, l.purpose)}${priceSuffix}
+        </div>
+        ${psqmRow()}
+        <div class="card-specs">
+          <div class="spec">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 9V5a1 1 0 0 1 .4-.8L6.4 1a1 1 0 0 1 1.2 0l5 3.2A1 1 0 0 1 13 5v4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><rect x="4" y="9" width="2.5" height="4" rx=".3" stroke="currentColor" stroke-width="1.1"/><rect x="7.5" y="9" width="2.5" height="4" rx=".3" stroke="currentColor" stroke-width="1.1"/><line x1="1" y1="13" x2="13" y2="13" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+            ${l.beds} Beds
+          </div>
+          <div class="spec">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 8h12v2a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8Z" stroke="currentColor" stroke-width="1.1"/><path d="M1 8V4a2 2 0 0 1 2-2h1.5v6" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+            ${l.baths} Baths
+          </div>
+          <div class="spec">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="1" stroke="currentColor" stroke-width="1.1"/><path d="M1.5 5.5h11M5.5 1.5v11" stroke="currentColor" stroke-width="1.1"/></svg>
+            ${formatSqft(l.area_sqft)}
+          </div>
+        </div>
+        <div class="card-cta">View on Bayut →</div>
+      </div>
+    </a>
+  `;
+}
+
+function renderListings() {
+  const filtered = getFilteredListings();
+  const grid = document.getElementById('grid');
+  document.getElementById('resultCount').textContent = filtered.length;
+
+  if (!filtered.length) {
+    grid.innerHTML = `
+      <div class="empty">
+        <h3>No listings match your filters</h3>
+        <p>Try adjusting the filters above</p>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(renderCard).join('');
+}
+
+function updateStats() {
+  const total = allListings.length;
+  const sale = allListings.filter(l => l.purpose === 'for-sale').length;
+  const rent = allListings.filter(l => l.purpose === 'for-rent').length;
+  const newToday = allListings.filter(l => l.age_days === 0).length;
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statSale').textContent = sale;
+  document.getElementById('statRent').textContent = rent;
+  document.getElementById('statNew').textContent = newToday;
+}
+
+function loadData() {
+  const data = EMBEDDED_DATA;
+  allListings = data.listings || [];
+  const updated = new Date(data.last_updated);
+  document.getElementById('lastUpdated').textContent =
+    'Last updated: ' + updated.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  updateStats();
+  renderListings();
+}
+
+// Filter buttons
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const type = btn.dataset.filter;
+    document.querySelectorAll(`[data-filter="${type}"]`).forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeFilters[type] = btn.dataset.value;
+    renderListings();
+  });
+});
+
+loadData();
+</script>
+</body>
+</html>
